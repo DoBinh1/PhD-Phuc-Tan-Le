@@ -1,0 +1,18 @@
+# Dữ liệu MAT (kích thước lớn — không upload lên git)
+Data/
+*.mat
+
+# Tài liệu PDF tham khảo
+*.pdf
+
+# Notebook đang phát triển (không thuộc bài nộp)
+*.ipynb
+
+# Cấu hình công cụ Claude (cá nhân)
+.claude/
+
+# Tệp tạm của MATLAB / hệ điều hành
+*.asv
+*.m~
+.DS_Store
+Thumbs.db
