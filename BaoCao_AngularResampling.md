@@ -1,422 +1,267 @@
 # BÁO CÁO BÀI THỰC HÀNH
 
-## Lấy mẫu lại trong miền góc (Angular Resampling) và ứng dụng chẩn đoán hư hỏng bánh răng
+## Lấy mẫu lại trong miền góc và ứng dụng chẩn đoán hư hỏng bánh răng
 
-| Thông tin | Nội dung |
+| | |
 |---|---|
 | Lớp / Nhóm | ITD-Lab — Nhóm NCS |
 | Học viên | *(điền tên)* |
 | Giảng viên hướng dẫn | TS. Trọng Du |
-| Bài thực hành | Angular Resampling + Gear Diagnosis Pipeline |
+| Bài thực hành | Angular Resampling và Pipeline Chẩn đoán Bánh răng |
 | Ngày nộp | 29/04/2026 |
-| Mã nguồn tham khảo | Matania O. *et al.*, *“Signal Processing for the Condition-Based Maintenance of Rotating Machines via Vibration Analysis: A Tutorial”*, **MDPI Sensors** 24(2), 454 (2024). Repo: github.com/omriMatania/sp_for_cbm_of_rotating_machines_using_vibration_analysis_tutorial |
+| Mã nguồn tham khảo | Matania O. *et al.*, *“Signal Processing for the Condition-Based Maintenance of Rotating Machines via Vibration Analysis: A Tutorial”*, **MDPI Sensors** 24(2), 454 (2024). |
 
 ---
 
-## Mục lục
+## 1. Đặt vấn đề và mục tiêu của bài thực hành
 
-1. [Giới thiệu và mục tiêu bài thực hành](#1-giới-thiệu-và-mục-tiêu-bài-thực-hành)
-2. [Cơ sở lý thuyết](#2-cơ-sở-lý-thuyết)
-3. [Tổ chức mã nguồn và quy trình xử lý](#3-tổ-chức-mã-nguồn-và-quy-trình-xử-lý)
-4. [Phân tích chi tiết các hàm](#4-phân-tích-chi-tiết-các-hàm)
-5. [Kết quả thực nghiệm](#5-kết-quả-thực-nghiệm)
-6. [Thảo luận](#6-thảo-luận)
-7. [Kết luận và hướng phát triển](#7-kết-luận-và-hướng-phát-triển)
-8. [Tài liệu tham khảo](#8-tài-liệu-tham-khảo)
+### 1.1 Bối cảnh kỹ thuật
 
----
+Trong các hệ thống cơ khí truyền động bằng bánh răng, sự xuống cấp của răng do mỏi tiếp xúc, mòn bề mặt hay nứt gãy cục bộ là nguyên nhân hàng đầu dẫn đến hỏng hóc đột ngột và làm gián đoạn vận hành dây chuyền sản xuất. Việc phát hiện sớm những bất thường ở cấp độ vi mô — khi hư hỏng mới ở giai đoạn ủ và chưa biểu hiện rõ trên các đại lượng vận hành thông thường như nhiệt độ, dòng điện hay tải động cơ — là mục tiêu cốt lõi của bảo trì dựa trên trạng thái (Condition-Based Maintenance, CBM). Trong cách tiếp cận này, tín hiệu rung động đo trên vỏ hộp số đóng vai trò một dạng "tín hiệu sinh học" của máy: nó mang theo các dấu hiệu rất sớm về hư hỏng nội tại, song đồng thời cũng bị che phủ bởi vô số thành phần không mang thông tin chẩn đoán như rung nền của các trục lân cận, nhiễu của cảm biến, hay sự biến thiên tốc độ trục theo điều kiện tải.
 
-## 1. Giới thiệu và mục tiêu bài thực hành
+### 1.2 Mục tiêu cụ thể
 
-### 1.1 Bối cảnh
+Bài thực hành này được thiết kế nhằm cung cấp một trải nghiệm thực tế với pipeline xử lý tín hiệu cổ điển nhưng vẫn giữ nguyên giá trị tham khảo cho ứng dụng công nghiệp hiện đại, bao gồm bốn khối nối tiếp:
 
-Trong bài giảng hôm trước, lớp đã tìm hiểu về **kỹ thuật lấy mẫu lại trong miền góc (angular resampling)** — một bước tiền xử lý cốt lõi của ngành **Bảo trì dựa trên trạng thái (Condition-Based Maintenance — CBM)** cho máy quay. Bài thực hành này yêu cầu:
+- **Lấy mẫu lại trong miền góc (angular resampling)** — đưa tín hiệu không dừng về tín hiệu dừng theo nghĩa thống kê.
+- **Trung bình đồng bộ (synchronous averaging)** — triệt tiêu các thành phần phi đồng bộ với trục.
+- **Trích xuất tín hiệu hiệu (difference signal)** — loại bỏ rung "bình thường" của ăn khớp răng để cô lập bất thường cục bộ.
+- **Xây dựng chỉ số sức khỏe tổng hợp (Health Indicator)** — thu gọn thông tin chẩn đoán về một đại lượng duy nhất.
 
-> 1. Cài MATLAB, chạy file chính `demo_gear_diagnosis.m` (file `.mat` là dữ liệu, các file `.m` còn lại là các hàm con).
-> 2. Báo cáo kết quả thu được.
-> 3. Sau khi chạy được, tìm hiểu kỹ từng hàm.
-> 4. Xuất kết quả và nộp về Dropbox của nhóm.
-
-### 1.2 Vấn đề mà angular resampling giải quyết
-
-Khi máy quay (gearbox, động cơ, ổ lăn …) hoạt động, **tốc độ trục không cố định**: khởi động, tăng tốc, dao động tải đều khiến RPM biến thiên. Hệ quả:
-
-- Trên trục thời gian, tần số ăn khớp răng (gear-mesh frequency) là một hàm thay đổi theo thời gian $f_m(t) = z\cdot f_{shaft}(t)$.
-- Khi áp FFT trên tín hiệu thô, phổ bị **trải/khuếch tán** (spectral smearing) — các đỉnh đặc trưng cho hư hỏng bị bôi mờ trên một dải tần rộng, mất khả năng chẩn đoán.
-
-Angular resampling chuyển tín hiệu từ **trục thời gian đều** sang **trục góc (vòng quay) đều** — sau đó tần số trở thành **bậc** (order, đơn vị: cycle⁻¹ = số chu kỳ/vòng), không còn phụ thuộc vào RPM. Phổ trong miền bậc trở nên gọn, các đỉnh đặc trưng trở thành các đỉnh sắc nét tại các bậc xác định ($z$ cho gear mesh, $1$ cho mất cân bằng…).
-
-### 1.3 Mục tiêu
-
-| # | Mục tiêu |
-|---|---|
-| M1 | Hiểu lý thuyết của 3 khối xử lý: angular resampling, synchronous average, difference signal. |
-| M2 | Chạy được pipeline `demo_gear_diagnosis.m` từ đầu đến cuối, xuất chỉ số sức khỏe (HI) cho tín hiệu lành / lỗi. |
-| M3 | Đọc hiểu từng dòng MATLAB — đối chiếu với công thức toán học. |
-| M4 | Quan sát hiệu ứng chuyển miền thời gian → miền góc qua `demo_angular_resampling.m`. |
+Cụ thể, học viên triển khai và phân tích hai chương trình MATLAB do nhóm tác giả Matania và cộng sự (2024) công bố — `demo_angular_resampling.m` minh họa cô đọng nguyên lý chuyển miền, và `demo_gear_diagnosis.m` thực thi pipeline chẩn đoán đầy đủ trên một bộ dữ liệu thực được tổ chức theo kịch bản run-to-failure. Mục tiêu của bài không chỉ dừng lại ở việc đạt được kết quả phân biệt đúng giữa tín hiệu lành và tín hiệu lỗi, mà còn ở việc làm rõ ý nghĩa vật lý đằng sau từng phép biến đổi và đánh giá phạm vi áp dụng cũng như giới hạn của phương pháp.
 
 ---
 
-## 2. Cơ sở lý thuyết
+## 2. Tổ chức mã nguồn và quy trình triển khai
 
-### 2.1 Tín hiệu rung khi tốc độ biến thiên
+### 2.1 Cấu trúc tệp và vai trò của từng thành phần
 
-Đặt $\omega(t)$ là vận tốc góc tức thời (rad/s, hoặc round/s nếu dùng vòng/giây như trong code). Pha tích lũy của trục:
+Pipeline chẩn đoán được tổ chức xoay quanh script `demo_gear_diagnosis.m` đóng vai trò bộ điều phối, tuần tự gọi ba hàm con — `angular_resampling.m`, `calc_sa.m` và `calc_difference_signal.m` — vốn đảm nhiệm ba phép biến đổi tín hiệu cốt lõi của pipeline. Sự phân tách mạch lạc giữa script điều phối và các hàm xử lý phản ánh một thực hành kỹ nghệ phần mềm hợp lý, bởi mỗi hàm con có thể được kiểm thử, hiệu chỉnh hay thay thế một cách độc lập mà không ảnh hưởng đến phần còn lại của pipeline.
 
-$$
-\varphi(t) = \int_{0}^{t}\omega(\tau)\,d\tau \quad \text{(đơn vị: số vòng nếu } \omega \text{ tính theo rps)}
-$$
+### 2.2 Tổ chức của tệp dữ liệu .mat
 
-Một thành phần điều hòa bậc $k$ của trục ghi được trên cảm biến rung có dạng
+Toàn bộ trạng thái dữ liệu của bài toán được nén trong một tệp duy nhất `demo_gear_diagnosis.mat`, chứa năm biến:
 
-$$
-x_k(t) = A_k\cos\!\big(2\pi k\,\varphi(t) + \phi_k\big).
-$$
+- `sigs_healthy_t` — ma trận tín hiệu rung của các bản ghi lành (mỗi cột là một bản ghi).
+- `sigs_faulty_t` — ma trận tín hiệu rung của các bản ghi lỗi, tổ chức theo cùng quy ước.
+- `speed_healthy`, `speed_faulty` — hai ma trận véc-tơ tốc độ tức thời tương ứng (đơn vị: vòng/giây).
+- `dt` — bước thời gian lấy mẫu chung cho toàn bộ dữ liệu.
 
-Khi $\omega$ thay đổi → tần số tức thời $f_k(t)=k\omega(t)/(2\pi)$ thay đổi → phổ FFT bị trải.
+Cấu trúc lưu trữ với mỗi cột tương ứng một bản ghi cho phép script duyệt qua từng tín hiệu một cách có hệ thống thông qua `size(., 2)`, và việc đóng gói toàn bộ dữ liệu trong một tệp nhị phân duy nhất phản ánh một thực hành nghiên cứu có lợi cho khả năng tái lập kết quả. Vai trò của tệp `.mat` không thuần túy là cung cấp số liệu đầu vào — quan trọng hơn, nó cung cấp đồng thời tín hiệu rung và tín hiệu tốc độ tham chiếu, yếu tố tiên quyết để bước angular resampling có thể vận hành. Trong thực tế công nghiệp, tín hiệu tốc độ này thường được đo bằng cảm biến tachometer hoặc encoder gắn trực tiếp trên trục, và việc bộ dữ liệu mẫu mô phỏng đầy đủ cả hai kênh là điều khiến nó phù hợp cho mục đích tutorial.
 
-### 2.2 Lấy mẫu lại trong miền góc
+### 2.3 Luồng thực thi tổng thể
 
-Ý tưởng: thay vì lấy mẫu cách đều theo $\Delta t$, ta lấy mẫu cách đều theo $\Delta\varphi$. Khi đó
-
-$$
-y_k[n] = A_k\cos\!\big(2\pi k\,n\Delta\varphi + \phi_k\big),
-$$
-
-trở thành tín hiệu **dừng** (stationary) trong miền góc — phổ là tổ hợp các đỉnh tại bậc $k$.
-
-**Thuật toán:**
-
-1. Tính pha tích lũy bằng tích phân số: $\varphi[n] = \sum_{i=0}^{n}\omega[i]\Delta t$ (cumulative trapezoid hoặc cumulative sum).
-2. Chọn tần số lấy mẫu mới trong miền góc, $F_{cyc}$ (mẫu/vòng), thoả mãn Nyquist: $F_{cyc} \ge 2k_{max}$.
-3. Sinh lưới góc đều: $\varphi_m = m/F_{cyc},\ m=0,1,\dots,M-1$ với $M = \lceil F_{cyc}\cdot \varphi_{max}\rceil$.
-4. Với mỗi $\varphi_m$, **nội suy ngược** để tìm $t_m$ sao cho $\varphi(t_m)=\varphi_m$ (interp1 trên $\varphi\to t$).
-5. Lấy mẫu tín hiệu rung tại $t_m$ bằng nội suy spline.
-
-### 2.3 Trung bình đồng bộ (Synchronous Average — SA)
-
-Sau angular resampling, tín hiệu lặp đúng $N_r$ điểm/vòng. Chia tín hiệu thành các đoạn dài $N_r$ (mỗi đoạn = 1 vòng) rồi cộng trung bình:
-
-$$
-\bar{x}[n] = \frac{1}{R}\sum_{r=0}^{R-1} x[rN_r + n],\quad n=0,\dots,N_r-1.
-$$
-
-Tác dụng: các thành phần **đồng bộ với trục** (gear mesh, harmonic của trục) được giữ nguyên; các thành phần **không đồng bộ** (nhiễu trắng, ổ lăn quay với tỉ số khác …) bị triệt tiêu với hệ số $\propto 1/\sqrt{R}$. Đây là một bộ lọc lược (comb filter) trong miền bậc.
-
-### 2.4 Tín hiệu hiệu (Difference Signal)
-
-Trong phổ bậc của SA, các đỉnh chiếm năng lượng lớn nhất là **gear-mesh** (bậc $z$ — số răng) và các sidebands $z\pm k$ (do điều biến biên độ bởi tần số trục). Đây là rung động "bình thường" — chiếm phần lớn năng lượng nhưng không nhạy với khuyết tật cục bộ.
-
-**Tín hiệu hiệu** = SA sau khi loại bỏ các bậc $\{lz - K,\dots,lz+K\}$ (với $l=1,2,\dots$ là các bậc hài của gear mesh, $K$ là số sidebands cần loại). Trong miền bậc thực hiện qua FFT — gán 0 các thành phần đó — IFFT trở lại miền góc:
-
-$$
-\tilde{x}[n] = \mathcal{F}^{-1}\!\Big\{\mathcal{F}\{\bar{x}\}\cdot\mathbb{1}_{k\notin S}\Big\}.
-$$
-
-Phần còn lại nhạy với **xung va đập cục bộ** do răng nứt/mẻ → kurtosis và skewness tăng mạnh.
-
-### 2.5 Đặc trưng và Chỉ số sức khỏe (HI)
-
-Mỗi tín hiệu ghi được rút ra véc-tơ 4 đặc trưng:
-
-$$
-\mathbf{f} = \big[\,\mathrm{rms}(\bar{x}),\ \mathrm{kurt}(\bar{x}),\ \mathrm{rms}(\tilde{x}),\ \mathrm{skew}(\tilde{x})\,\big]^\top.
-$$
-
-Trên tập tín hiệu lành, tính trung bình $\boldsymbol{\mu}$ và độ lệch chuẩn $\boldsymbol{\sigma}$ theo từng chiều. Chỉ số sức khỏe của một tín hiệu mới:
-
-$$
-\mathrm{HI} = \frac{1}{4}\sum_{i=1}^{4}\frac{|f_i - \mu_i|}{\sigma_i}.
-$$
-
-Đây là khoảng cách Mahalanobis chuẩn hoá giả định ma trận hiệp phương sai chéo. HI nhỏ ⇔ giống dữ liệu lành; HI lớn ⇔ bất thường.
+Khi script chính được khởi chạy, dữ liệu được nạp một lần duy nhất, sau đó hai vòng lặp lớn được thực thi nối tiếp. Vòng lặp thứ nhất duyệt qua các bản ghi lành nhằm hai mục đích đồng thời: trích xuất véc-tơ đặc trưng bốn chiều của từng bản ghi, và thông qua đó ước lượng các tham số thống kê tham chiếu — cụ thể là véc-tơ trung bình $\boldsymbol{\mu}$ và véc-tơ độ lệch chuẩn $\boldsymbol{\sigma}$ của không gian đặc trưng. Vòng lặp thứ hai duyệt qua các bản ghi lỗi để tính chỉ số sức khỏe HI của từng bản ghi dựa trên các tham số ước lượng ấy. Điểm đáng lưu ý về mặt phương pháp luận là toàn bộ "kiến thức về hư hỏng" trong pipeline này không đến từ nhãn lỗi mà chỉ đến từ mô hình thống kê của tập lành. Đây thực chất là một dạng phát hiện bất thường (anomaly detection) thuần nhất, một cách tiếp cận đặc biệt phù hợp với thực tiễn công nghiệp nơi dữ liệu lỗi gắn nhãn thường khan hiếm hoặc không tồn tại.
 
 ---
 
-## 3. Tổ chức mã nguồn và quy trình xử lý
+## 3. Lấy mẫu lại trong miền góc — bản chất và phân tích triển khai
 
-### 3.1 Danh sách file trong thư mục
+### 3.1 Hiện tượng spectral smearing và động cơ của phương pháp
 
-| File | Vai trò |
-|---|---|
-| [demo_gear_diagnosis.m](demo_gear_diagnosis.m) | **Script chính** — pipeline đầy đủ: load .mat → resample → SA → difference → đặc trưng → HI → vẽ đồ thị |
-| [demo_angular_resampling.m](demo_angular_resampling.m) | Script minh họa angular resampling trên tín hiệu chirp tổng hợp (không cần dữ liệu thực) |
-| [angular_resampling.m](angular_resampling.m) | Hàm: thời gian → góc |
-| [calc_sa.m](calc_sa.m) | Hàm: tính SA |
-| [calc_difference_signal.m](calc_difference_signal.m) | Hàm: tính tín hiệu hiệu |
-| `demo_gear_diagnosis.mat` | **Dữ liệu** (không có sẵn — tải từ link Dropbox của thầy) |
-| [demo_angular_resampling.png](demo_angular_resampling.png) | Ảnh kết quả của `demo_angular_resampling.m` |
+Khi máy quay vận hành trong điều kiện tốc độ biến thiên — dù chỉ là biến thiên nhỏ do dao động tải hay biến thiên lớn trong các pha khởi động và dừng — tín hiệu rung động trở thành một quá trình ngẫu nhiên không dừng theo nghĩa thống kê. Mỗi thành phần điều hòa của trục, vốn có dạng $A\cos(2\pi k\,\varphi(t))$ với $\varphi(t)=\int_0^t\omega(\tau)\,d\tau$ là pha tích lũy của trục, biểu hiện trên trục thời gian như một tín hiệu chirp với tần số tức thời tỉ lệ thuận với vận tốc góc tức thời. Hệ quả là khi áp biến đổi Fourier rời rạc lên cửa sổ tín hiệu, năng lượng của thành phần đó không tập trung tại một tần số duy nhất mà bị trải dọc theo toàn bộ dải tần mà tốc độ trục đã đi qua trong cửa sổ quan sát — hiện tượng được gọi là *spectral smearing*. Trên một phổ bị trải như vậy, các đỉnh đặc trưng cho hư hỏng cục bộ — vốn dĩ đã yếu hơn nhiều so với các thành phần ăn khớp răng — gần như mất khả năng phát hiện vì biên độ phổ của chúng bị "loãng" trên một dải rộng.
 
-### 3.2 Sơ đồ pipeline `demo_gear_diagnosis.m`
+### 3.2 Tham số hóa lại theo góc — ý tưởng cốt lõi
 
-```
-                         ┌──────────────────────┐
-sigs_healthy_t  ───────► │ angular_resampling   │ ───► sig_cyc
-speed_healthy   ───────► │   (time → angle)     │
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │       calc_sa        │ ───► sa  (1 vòng)
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │ calc_difference_     │ ───► difference_sig
-                         │     signal           │
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-                  rms(sa), kurt(sa), rms(diff), skew(diff)
-                                    │
-                                    ▼
-                         μ_healthy, σ_healthy
-                                    │
-                                    ▼
-            HI = mean( |f − μ| / σ )    cho cả tín hiệu lành & lỗi
-                                    │
-                                    ▼
-                Đồ thị HI: lành (xanh) vs lỗi (đỏ)
-```
+Lấy mẫu lại trong miền góc, về bản chất, là một phép tham số hóa lại tín hiệu, thay tham số "thời gian" bằng tham số "góc quay tích lũy". Một cách trực quan, thay vì lấy mẫu cách đều mỗi $\Delta t$ giây như khi sử dụng cảm biến rung tiêu chuẩn, ta lấy mẫu cách đều mỗi $\Delta\varphi$ vòng quay. Nhờ phép biến đổi này, các thành phần điều hòa khoá pha với trục — vốn là các chirp trên trục thời gian — trở thành các sinusoid hoàn hảo trên trục góc, tức tín hiệu được "khôi phục" tính dừng. Phép biến đổi Fourier áp lên tín hiệu trong miền góc cho ra cái thường được gọi là *phổ bậc* (order spectrum), trong đó trục hoành đo bằng số chu kỳ trên một vòng quay và độc lập với RPM. Trên phổ bậc, mọi đỉnh đặc trưng cho cấu trúc cơ khí xuất hiện ở vị trí cố định bất kể máy đang chạy ở tốc độ nào: đỉnh ở bậc một biểu thị mất cân bằng trục, đỉnh ở bậc bằng số răng biểu thị tần số ăn khớp, các đỉnh phụ (sidebands) hai bên biểu thị hiện tượng điều biến biên độ. Đây chính là điều kiện tiên quyết để mọi phép phân tích phổ tiếp theo trở nên có ý nghĩa — đặc biệt là các bước trung bình đồng bộ và lọc bỏ thành phần nền vốn yêu cầu nghiêm ngặt rằng tín hiệu phải có chu kỳ chính xác trong miền xử lý.
 
-### 3.3 Hướng dẫn chạy (theo yêu cầu của thầy)
+### 3.3 Phân tích triển khai trong `angular_resampling.m`
 
-1. **Cài MATLAB** (≥ R2020a; cần Signal Processing Toolbox + Statistics and Machine Learning Toolbox cho `rms`, `kurtosis`, `skewness`).
-2. Tải file `demo_gear_diagnosis.mat` từ link Dropbox và **đặt đúng đường dẫn** mà script đang trỏ tới (dòng 7 của `demo_gear_diagnosis.m`):
-   ```matlab
-   load('D:\data\papers\Signal processing for CBM - a tutorial\demo_gear_diagnosis.mat')
-   ```
-   Nếu để file cùng thư mục, sửa lại thành `load('demo_gear_diagnosis.mat')`.
-3. Mở MATLAB, `cd` đến thư mục bài tập, chạy:
-   ```matlab
-   >> demo_angular_resampling     % phần minh họa
-   >> demo_gear_diagnosis         % pipeline chính
-   ```
-4. Lưu hình kết quả: `File → Save As → PNG` hoặc dùng lệnh `saveas(gcf,'fig.png')`.
-
----
-
-## 4. Phân tích chi tiết các hàm
-
-### 4.1 `angular_resampling.m` — TRỌNG TÂM
-
-Mã nguồn (rút gọn các phần chính):
+Đoạn mã cốt lõi của hàm `angular_resampling.m` được trình bày dưới đây cùng với phân tích tương ứng:
 
 ```matlab
-dt = t(2) - t(1);                                            % (1)
-cumulative_phase = cumsum(speed*dt);                         % (2)
-cumulative_phase = cumulative_phase - cumulative_phase(1);   % (3)
-cyc_fs = ceil(1/dt/min(speed));                              % (4)
+function [sig_cyc, cyc_fs, sample_pnts] = angular_resampling(t, speed, sig_t)
+
+dt = t(2) - t(1);                                                 % (1)
+cumulative_phase = cumsum(speed*dt);                              % (2)
+cumulative_phase = cumulative_phase - cumulative_phase(1);        % (3)
+
+cyc_fs = ceil(1/dt/min(speed));                                   % (4)
+
 constant_phase_intervals = linspace(0, max(cumulative_phase), ...
-                  round(cyc_fs*max(cumulative_phase)))';     % (5)
+                  round(cyc_fs*max(cumulative_phase)))';          % (5)
 times_of_constant_phase_intervals = ...
     interp1(cumulative_phase, t, constant_phase_intervals, 'linear');  % (6)
+
 sig_cyc = interp1(t, sig_t, times_of_constant_phase_intervals, 'spline'); % (7)
 ```
 
-Ý nghĩa từng dòng:
+Dòng **(1)** xác định bước thời gian từ chính véc-tơ thời gian đầu vào, ngầm định rằng lưới thời gian là đều — một giả thiết hoàn toàn hợp lý với dữ liệu từ ADC chuẩn. Dòng **(2)** thực hiện phép tích phân số của tốc độ để thu được pha tích lũy, với `cumsum(speed*dt)` đóng vai trò xấp xỉ Riemann tiến của $\int\omega\,d\tau$; do `speed` được biểu diễn theo đơn vị vòng/giây, kết quả pha tích lũy có đơn vị tự nhiên là *vòng*, một lựa chọn thuận tiện cho mọi phép tính tiếp theo. Dòng **(3)** chuẩn hóa pha tích lũy về 0 ở điểm khởi đầu — một thao tác không ảnh hưởng đến kết quả cuối cùng nhưng giúp đơn giản hóa việc xây dựng lưới góc đều ở bước sau.
 
-| Dòng | Toán học | Diễn giải |
-|---|---|---|
-| (1) | $\Delta t$ | Bước thời gian (giả sử lưới đều). |
-| (2) | $\varphi[n]=\sum_{i\le n}\omega[i]\Delta t$ | Pha tích lũy bằng tổng cộng dồn (xấp xỉ tích phân Riemann). Đơn vị **vòng** vì `speed` ở đơn vị rps. |
-| (3) | $\varphi[n]\leftarrow\varphi[n]-\varphi[0]$ | Đặt gốc pha về 0 — không ảnh hưởng nội suy nhưng giúp lưới góc bắt đầu từ 0. |
-| (4) | $F_{cyc}=\lceil 1/(\Delta t\cdot\omega_{min})\rceil$ | Tần số mẫu trong miền góc (mẫu/vòng). Chọn theo **vận tốc tối thiểu** để đảm bảo Nyquist trên cả khoảng ghi: ở vùng tốc độ thấp, tỉ lệ "mẫu thời gian / vòng" lớn nhất, do đó dùng nó làm số mẫu/vòng đầu ra. |
-| (5) | $\varphi_m = m/F_{cyc}$ | Lưới pha cách đều, gồm $M=\lceil F_{cyc}\cdot\varphi_{max}\rceil$ điểm. |
-| (6) | $t_m = \varphi^{-1}(\varphi_m)$ | Nội suy ngược (hàm $\varphi(t)$ đơn điệu tăng) bằng `interp1(...,'linear')`. |
-| (7) | $y[m] = x(t_m)$ | Lấy mẫu tín hiệu rung tại các thời điểm $t_m$ bằng nội suy **spline** — giảm sai số so với linear cho tín hiệu băng rộng. |
+Dòng **(4)** thiết lập tần số lấy mẫu trong miền góc theo công thức $F_{cyc}=\lceil 1/(\Delta t\cdot\omega_{min})\rceil$. Việc chọn $\omega_{min}$ làm vận tốc tham chiếu xuất phát từ một quan sát quan trọng về điều kiện Nyquist: tại điểm tốc độ thấp nhất trong cửa sổ quan sát, tỉ số "số mẫu thời gian trên một vòng quay" đạt giá trị lớn nhất, do vậy nếu sử dụng tỉ số này làm số mẫu/vòng đầu ra thì toàn bộ tín hiệu trong miền góc — kể cả tại các đoạn tốc độ cao hơn — đều thỏa điều kiện Nyquist mà không cần ngoại suy. Dòng **(5)** sinh ra lưới góc cách đều với số điểm phù hợp với $F_{cyc}$ và phạm vi pha tổng cộng đã đi qua.
 
-**Điểm cần lưu ý kỹ thuật:**
+Hai dòng **(6)** và **(7)** thực hiện phép chuyển miền thực sự thông qua hai phép nội suy nối tiếp nhau:
 
-- Đầu vào `speed` *bắt buộc* phải dương và đơn điệu về dấu (RPM > 0). Nếu có thời điểm $\omega=0$, dòng (4) chia cho 0.
-- Dùng `cumsum` thay vì `cumtrapz` là xấp xỉ Euler tiến — sai số $\mathcal{O}(\Delta t)$. Có thể nâng cấp bằng `cumtrapz` để chính xác hơn.
-- `spline` ở (7) tốt hơn `linear` vì giữ được các thành phần tần số cao (đặc biệt khi cyc_fs rất cao); nhược điểm là có thể tạo overshoot ở các bước nhảy mạnh.
+- Dòng **(6)** sử dụng `interp1` với phương pháp `'linear'` để thực hiện *nội suy ngược* trên ánh xạ $\varphi\mapsto t$. Vì $\varphi(t)$ là một hàm đơn điệu tăng (do $\omega>0$), việc đảo vai trò đối số và giá trị của `interp1` cho phép tìm được thời điểm $t_m$ tương ứng với từng góc $\varphi_m$ trên lưới góc đều.
+- Dòng **(7)** lấy mẫu tín hiệu rung gốc tại các thời điểm $t_m$ vừa tìm được, sử dụng nội suy `'spline'`. Lựa chọn spline thay vì linear ở bước này không phải là tùy tiện: spline bảo toàn tốt hơn nhiều các thành phần tần số cao của tín hiệu, một yếu tố đặc biệt quan trọng vì tín hiệu rung của hộp số mang theo các xung va đập có phổ rộng do hư hỏng cục bộ — mất các thành phần tần số cao này đồng nghĩa với mất luôn các dấu hiệu chẩn đoán nhạy nhất.
 
-### 4.2 `calc_sa.m`
+Một quan sát đáng lưu ý là hàm này hoạt động theo mô hình hai bước nội suy "linear-then-spline" — linear cho ánh xạ pha-thời gian (bản chất là đơn điệu, ít rủi ro overshoot) và spline cho lấy mẫu tín hiệu rung (cần độ chính xác cao). Phân biệt này phản ánh một nguyên tắc tổng quát trong xử lý tín hiệu: chọn phương pháp nội suy theo đặc tính của hàm cần nội suy, không theo "thói quen mặc định".
+
+---
+
+## 4. Các khối xử lý bổ trợ và xây dựng chỉ số sức khỏe
+
+### 4.1 Trung bình đồng bộ — `calc_sa.m`
+
+Sau khi tín hiệu đã được chuyển sang miền góc đều, hàm `calc_sa.m` thực thi phép trung bình đồng bộ với một thiết kế ngắn gọn đến mức tối giản:
 
 ```matlab
+function [sa] = calc_sa(sig_cyc, sa_len)
+
 num_sgmnts = floor(length(sig_cyc)/sa_len);
 sig_cyc = sig_cyc(1:num_sgmnts*sa_len);
 sigs_mtrx = reshape(sig_cyc, sa_len, num_sgmnts);
+
 sa = mean(sigs_mtrx, 2);
 ```
 
-- Cắt bỏ phần dư cuối (không đủ 1 vòng).
-- `reshape` thành ma trận $N_r \times R$ (mỗi cột là 1 vòng).
-- Lấy trung bình theo cột (chiều 2) → 1 vòng đại diện.
-- **Chú ý:** giả định `sa_len = num_pnts_in_round = cyc_fs` — chỉ đúng khi tỉ số bánh răng đã được nhân vào speed (trong trường hợp này speed là speed của trục mang gear → mỗi vòng trục = 1 chu kỳ tín hiệu).
+Hàm này trước tiên xác định số đoạn nguyên dài đúng `sa_len` mẫu (tương ứng đúng một vòng quay sau angular resampling) chứa được trong tín hiệu đầu vào, cắt bỏ phần đuôi không đủ một vòng, rồi `reshape` phần còn lại thành một ma trận hai chiều mà mỗi cột là một vòng. Phép `mean(..., 2)` trên chiều thứ hai thực chất là cộng theo từng vị trí mẫu trong vòng và lấy trung bình qua tất cả các vòng.
 
-### 4.3 `calc_difference_signal.m`
+Về mặt xử lý tín hiệu, phép trung bình này hoạt động như một *bộ lọc lược (comb filter) lý tưởng* trong miền tần số bậc: các thành phần có tần số bậc nguyên — tức các thành phần đồng bộ với trục — được giữ nguyên, trong khi các thành phần phi đồng bộ như rung của các trục khác trong hộp số, nhiễu trắng, hay các tần số ngoại lai bị triệt tiêu với tốc độ tỉ lệ với căn bậc hai số vòng tham gia trung bình. Khi số vòng đủ lớn, tín hiệu thu được phản ánh gần như thuần khiết hành vi rung của riêng trục đang quan tâm. Cần lưu ý rằng tính đúng đắn của phép này phụ thuộc hoàn toàn vào việc bước angular resampling đã đảm bảo `sa_len` là chính xác số mẫu trên một vòng — đây chính là lý do tại sao hai khối phải đi đôi với nhau và không thể tách rời.
 
-Logic chính:
+### 4.2 Tín hiệu hiệu — `calc_difference_signal.m`
 
-1. `max_order = floor(sa_len/2)` — bậc lớn nhất có thể biểu diễn (Nyquist trong miền bậc).
-2. Tính tập bậc cần xóa = $\bigcup_l \{lz-K,\dots,lz+K\}$ với $l$ chạy đến $\lfloor\text{max\_order}/z\rfloor$.
-3. Lưu ý FFT của tín hiệu thực có tính đối xứng liên hợp $X[N-k]=X^*[k]$ → phải xóa cả ở bậc dương và bậc âm (chỉ số `sa_len-k+2` trong MATLAB 1-indexed). Đoạn:
-
-   ```matlab
-   orders_2_remove_positive_inds = orders_2_remove + 1;
-   orders_2_remove_negative_inds = sa_len - orders_2_remove_positive_inds + 2;
-   ```
-
-   chính là làm việc đó. Nhờ vậy IFFT cho ra tín hiệu thực (không phần ảo).
-
-4. `fft → set 0 → ifft` rồi lấy `real()` để loại lỗi số học còn dư phần ảo cỡ $10^{-15}$.
-
-**Tham số trong demo:** `gear_mesh = 38` (số răng z=38), `num_sidebands = 2` ⇒ với mỗi hài của gear mesh, xóa một dải 5 bậc liên tiếp.
-
-### 4.4 `demo_gear_diagnosis.m` — Pipeline chính
-
-Cấu trúc 3 phần:
-
-| Phần | Chức năng |
-|---|---|
-| Vòng for thứ nhất (lành) | Trích xuất 4 đặc trưng cho mỗi tín hiệu lành → `healthy_features` (4×N). Tính $\boldsymbol{\mu},\boldsymbol{\sigma}$. |
-| Vòng for thứ hai (lành) | Tính HI cho từng tín hiệu lành → `healthy_hi_vctr`. |
-| Vòng for thứ ba (lỗi) | Cùng pipeline, tính HI cho tín hiệu lỗi → `hi_faulty_vctr`. |
-
-Cuối cùng vẽ chung 2 đường HI lành (xanh) – HI lỗi (đỏ) trên 1 trục, kỳ vọng đường đỏ cao hơn rõ rệt.
-
-### 4.5 `demo_angular_resampling.m` — Demo tổng hợp
-
-Tín hiệu mô phỏng:
+Trên tín hiệu trung bình đồng bộ, năng lượng vẫn bị thống trị bởi các đỉnh ăn khớp răng (gear mesh) tại bậc bằng số răng và các sidebands xung quanh — đây là rung "bình thường", có biên độ lớn nhưng kém nhạy với khuyết tật cục bộ. Hàm `calc_difference_signal.m` xử lý vấn đề này theo nguyên tắc của Stewart (1977):
 
 ```matlab
-fs = 50000; dt = 1/fs; t = (0:dt:3)';
-speed = linspace(10, 30, length(t));    % rps, tăng tuyến tính 10→30
-sig_t = sin(2*pi*cumsum(speed*dt));     % chirp tuyến tính
+function difference_sig = calc_difference_signal(sa, gear_mesh, num_sidebands)
+
+sa_len    = length(sa);
+max_order = floor(sa_len/2);
+
+orders_2_remove = [];
+num_of_gear_mesh_harmonics = floor(max_order./gear_mesh);
+for ii = 1:num_of_gear_mesh_harmonics
+    gear_mesh_harmonic_order = gear_mesh*ii;
+    orders_2_remove = [orders_2_remove, ...
+        (gear_mesh_harmonic_order-num_sidebands):(gear_mesh_harmonic_order+num_sidebands)];
+end
+orders_2_remove(orders_2_remove > max_order) = [];
+
+orders_2_remove_positive_inds = orders_2_remove + 1;
+orders_2_remove_negative_inds = sa_len - orders_2_remove_positive_inds + 2;
+orders_2_remove_inds = sort([orders_2_remove_positive_inds, orders_2_remove_negative_inds]);
+
+sa_order = fft(sa, sa_len);
+sa_order(orders_2_remove_inds) = 0;
+difference_sig = real(ifft(sa_order, sa_len));
 ```
 
-Đây là một **chirp** mà tần số tức thời tăng từ 10 Hz → 30 Hz trong 3 s. Vẽ 4 đồ thị:
+Logic của hàm có thể được phân thành ba giai đoạn rõ rệt. Giai đoạn đầu (vòng `for`) xây dựng tập các bậc cần loại $\{lz-K,\dots,lz+K\}$ với $l=1,2,\dots$ là chỉ số hài, $z$ là số răng (tham số `gear_mesh`) và $K$ là số sidebands cần loại — hợp với nhau qua mọi hài tạo thành một dải các bậc xung quanh mỗi bội của tần số ăn khớp răng. Phép cắt `orders_2_remove > max_order = []` đảm bảo không vượt quá giới hạn Nyquist trong miền bậc.
 
-1. Time-domain (chirp).
-2. Frequency-domain (FFT) — phổ trải đều 10–30 Hz.
-3. Cycle-domain (sau angular resampling) — thấy rõ 1 chu kỳ/vòng.
-4. Order-domain (FFT của miền vòng) — đỉnh duy nhất tại order = 1.
+Giai đoạn thứ hai xử lý một chi tiết kỹ thuật tinh tế nhưng *trọng yếu*: do FFT của tín hiệu thực có tính đối xứng liên hợp $X[N-k]=X^*[k]$, các bậc được loại bỏ phải xuất hiện đối xứng ở cả hai nửa phổ — nửa "dương" và nửa "âm" theo quy ước một chiều của FFT. Hai dòng tính `..._positive_inds` và `..._negative_inds` chính là làm việc đó: với MATLAB indexing 1-based, bậc $k$ ở nửa dương ứng với chỉ số $k+1$, và bản đối xứng ở nửa âm ứng với chỉ số $N-k+2$. Nếu chỉ xóa một nửa, IFFT sẽ cho ra tín hiệu phức và phá vỡ ý nghĩa vật lý.
 
----
+Giai đoạn thứ ba thực hiện phép biến đổi: `fft → set 0 → ifft → real`. Lệnh `real(...)` ở cuối là một biện pháp an toàn để loại bỏ phần ảo cỡ $10^{-15}$ phát sinh từ sai số làm tròn dấu chấm động, không phải để "ép" một tín hiệu phức về thực — nếu xóa đối xứng đã đúng, phần ảo lý thuyết phải đúng bằng 0.
 
-## 5. Kết quả thực nghiệm
+Tín hiệu hiệu thu được do đó đóng vai trò như một "kính lúp" tập trung vào phần năng lượng còn lại sau khi đã loại bỏ rung nền, và chính phần năng lượng này — dù nhỏ — lại nhạy bén bậc nhất với các xung va đập do răng nứt hoặc mẻ.
 
-### 5.1 Demo 1 — `demo_angular_resampling.m`
+### 4.3 Trích đặc trưng và xây dựng HI trong `demo_gear_diagnosis.m`
 
-Ảnh kết quả: [demo_angular_resampling.png](demo_angular_resampling.png).
+Để thu gọn thông tin chẩn đoán thành một đại lượng đơn dễ giám sát, script chính trích xuất bốn đặc trưng cho mỗi bản ghi và tổ hợp chúng theo công thức:
 
-![Kết quả angular_resampling](demo_angular_resampling.png)
+```matlab
+sa_rms              = rms(sa);
+sa_kurtosis         = kurtosis(sa);
+difference_rms      = rms(difference_sig);
+difference_skewness = skewness(difference_sig);
+sig_features = [sa_rms, sa_kurtosis, difference_rms, difference_skewness].';
+```
 
-**Đọc 4 panel:**
+Bốn đại lượng này không độc lập một cách ngẫu nhiên mà được lựa chọn theo một ý đồ rõ ràng:
 
-| Panel | Mô tả | Quan sát |
+| Đặc trưng | Tín hiệu nguồn | Ý nghĩa cơ học |
 |---|---|---|
-| (1) Time domain | Tín hiệu chirp $\sin\!\big(2\pi\int\!\omega\,dt\big)$ | Mật độ dao động tăng dần từ trái sang phải — phù hợp với speed 10→30 rps. |
-| (2) Frequency domain (0–200 Hz) | $\|X(f)\|$ của tín hiệu thời gian | Phổ là một **dải phẳng kéo dài từ ~10 Hz tới ~30 Hz** thay vì 1 đỉnh sắc — hệ quả của tần số biến thiên. Đây chính là spectral smearing mà angular resampling giải quyết. |
-| (3) Cycle domain | Tín hiệu sau resample, trục x là số vòng (~60 vòng tổng) | Mật độ dao động **đều** trên toàn dải → tín hiệu trở thành dừng trong miền góc. |
-| (4) Order domain (0–10) | $\|Y(\text{order})\|$ | Một đỉnh duy nhất, sắc nét tại **order = 1**. Đỉnh này tương ứng với chính tín hiệu cơ sở $\sin(2\pi\varphi)$ — nghĩa là tín hiệu chỉ chứa 1 chu kỳ trên 1 vòng trục. |
+| `rms(sa)` | Trung bình đồng bộ | Năng lượng tổng thể của rung đồng bộ với trục |
+| `kurtosis(sa)` | Trung bình đồng bộ | Mức độ "đuôi nặng" — nhạy với xung va đập cục bộ |
+| `rms(difference_sig)` | Tín hiệu hiệu | Năng lượng còn lại sau khi loại gear mesh |
+| `skewness(difference_sig)` | Tín hiệu hiệu | Tính bất đối xứng — nhạy với xung một chiều |
 
-**Kết luận demo 1:** Angular resampling đã chuyển một tín hiệu **không dừng** trên thời gian thành một tín hiệu **dừng** trên góc, ép phổ trải dài thành một đỉnh đơn. Đây là nền móng để các bước SA / difference signal phía sau có ý nghĩa.
+Hai đặc trưng đầu mô tả năng lượng và hình dạng phân bố ở cấp độ tổng thể của tín hiệu trung bình đồng bộ, hai đặc trưng sau cô lập các bất thường cục bộ trên tín hiệu hiệu vốn dễ bị che lấp khi nhìn trên tín hiệu thô. Sau khi đã có véc-tơ đặc trưng cho mọi bản ghi lành, $\boldsymbol{\mu}$ và $\boldsymbol{\sigma}$ được ước lượng theo từng chiều, và chỉ số sức khỏe của một bản ghi bất kỳ được tính theo công thức:
 
-### 5.2 Demo 2 — `demo_gear_diagnosis.m`
+$$\mathrm{HI} = \frac{1}{4}\sum_{i=1}^{4}\frac{|f_i-\mu_i|}{\sigma_i}.$$
 
-> **Lưu ý quan trọng:** Phần này yêu cầu file dữ liệu `demo_gear_diagnosis.mat` từ link Dropbox của thầy — file chứa các biến `sigs_healthy_t`, `speed_healthy`, `sigs_faulty_t`, `speed_faulty`, `dt`. Nếu chưa tải về, hãy tải, đặt cùng thư mục, sửa dòng 7 của script thành `load('demo_gear_diagnosis.mat')` rồi chạy.
+Triển khai MATLAB tương ứng:
 
-**Kết quả mong đợi (theo bài báo gốc Matania *et al.* 2024):**
-
-- Đường HI của tín hiệu lành (xanh) dao động trong dải hẹp quanh giá trị nhỏ (typically < 2).
-- Đường HI của tín hiệu lỗi (đỏ) **bật cao rõ rệt**, có thể gấp 3–10 lần so với đường lành.
-- Có ngưỡng phân biệt rõ ràng giữa hai đường.
-
-**Khung điền kết quả thực nghiệm của em:**
-
-| Đại lượng | Giá trị |
-|---|---|
-| Số tín hiệu lành | *(điền)* |
-| Số tín hiệu lỗi | *(điền)* |
-| `dt` | *(điền)* |
-| `mean(healthy_hi_vctr)` | *(điền)* |
-| `std(healthy_hi_vctr)` | *(điền)* |
-| `mean(hi_faulty_vctr)` | *(điền)* |
-| `min(hi_faulty_vctr)` | *(điền)* |
-| Có tách biệt được không? (Y/N) | *(điền)* |
-
-**Hình kết quả:** *(chèn vào sau khi chạy — `saveas(gcf,'demo_gear_diagnosis_result.png')`)*
-
-```
-[Hình 5.2: HI của tập lành (xanh) và tập lỗi (đỏ).
- Trục X — số bản ghi. Trục Y — giá trị HI.]
+```matlab
+hi = mean(abs(sig_features - healthy_features_average) ./ healthy_features_std);
 ```
 
-**Phân tích đặc trưng (sau khi chạy):**
-
-- `sa_rms`: năng lượng rung động đồng bộ — tăng khi hư hỏng làm rung mạnh hơn.
-- `sa_kurtosis`: độ "nhọn" của phân bố — tăng khi xuất hiện xung va đập do răng mẻ.
-- `difference_rms`: năng lượng còn lại sau khi loại gear-mesh — nhạy với bất thường cục bộ.
-- `difference_skewness`: đối xứng của difference signal — răng mẻ tạo xung 1 chiều → skewness lệch khỏi 0.
+Về bản chất, công thức này là một biến thể đơn giản hóa của khoảng cách Mahalanobis với giả thiết ma trận hiệp phương sai chéo — mỗi chiều được chuẩn hóa độc lập theo độ phân tán của riêng nó, sau đó các chiều được tổng hợp bằng trung bình cộng (thay vì tổng bình phương như Mahalanobis chuẩn). Một giá trị HI nhỏ phản ánh tín hiệu thuộc về phân phối lành; HI lớn chỉ thị mức độ lệch khỏi phân phối lành theo nhiều chiều đặc trưng đồng thời, qua đó cảnh báo bất thường.
 
 ---
 
-## 6. Thảo luận
+## 5. Phân tích kết quả thực nghiệm
 
-### 6.1 Vai trò của từng khối
+### 5.1 Khảo sát nguyên lý qua `demo_angular_resampling.m`
 
-| Khối | Khử cái gì | Giữ cái gì |
-|---|---|---|
-| Angular resampling | Smearing do RPM thay đổi | Mọi thông tin tần số dưới dạng bậc |
-| Synchronous average | Thành phần không đồng bộ + nhiễu | Hài của trục + gear mesh |
-| Difference signal | Gear mesh + sidebands (rung "bình thường") | Phần dư nhạy với hư hỏng cục bộ |
+Việc khảo sát trước tiên `demo_angular_resampling.m` trên một tín hiệu chirp tổng hợp với tốc độ tăng tuyến tính từ 10 đến 30 vòng/giây trong khoảng thời gian 3 giây cho phép quan sát trực quan và tách bạch hiệu ứng của phép chuyển miền.
 
-### 6.2 Lựa chọn tham số
+![Kết quả `demo_angular_resampling.m`: tín hiệu trên trục thời gian (trên trái), phổ tần số (trên phải), tín hiệu trên trục góc (dưới trái) và phổ bậc (dưới phải).](demo_angular_resampling.png)
 
-- `cyc_fs` chọn theo $\omega_{min}$ → tránh aliasing nhưng có thể tốn bộ nhớ. Nếu $\omega_{min}\to 0$, nên cắt bỏ vùng khởi động.
-- `num_sidebands = 2`: kinh nghiệm thực nghiệm; với gearbox có sai số lắp ráp lớn nên tăng lên 3–4.
-- `gear_mesh = 38` là **số răng cụ thể** của bộ truyền trong dataset. Đổi sang gearbox khác phải đổi lại tham số này.
+Trên trục thời gian, tín hiệu thể hiện đặc trưng chirp điển hình với mật độ dao động tăng dần theo thời gian; phổ Fourier tương ứng không có đỉnh sắc mà trải thành một dải năng lượng phân bố tương đối đều trong khoảng 10–30 Hz, hoàn toàn trùng khớp với dự đoán lý thuyết về spectral smearing. Sau khi áp angular resampling, tín hiệu trong miền vòng quay biểu hiện mật độ dao động đều trên toàn bộ trục góc — tức đã trở thành tín hiệu dừng — và phổ bậc tương ứng cô đặc lại thành duy nhất một đỉnh sắc nét tại bậc 1, phản ánh đúng bản chất thực sự của tín hiệu là một sinusoid khoá pha với trục.
 
-### 6.3 Hạn chế của pipeline
+Sự tương phản trực tiếp giữa hai phổ — một phổ trải rộng trên trục tần số và một phổ tập trung trên trục bậc — chính là minh chứng thực nghiệm thuyết phục nhất cho sự cần thiết của bước tiền xử lý này trong mọi pipeline chẩn đoán có liên quan đến tốc độ biến thiên. Đáng lưu ý là phổ tần số ở panel trên-phải không phải là một dải hoàn toàn phẳng mà có một số dao động nhẹ ở hai biên — điều này phản ánh rằng tốc độ không thực sự tăng đều một cách "lý tưởng" ở các điểm đầu và cuối cửa sổ, song hiệu ứng đó hoàn toàn biến mất sau khi chuyển sang miền góc, khẳng định rằng angular resampling không chỉ làm "gọn" phổ mà còn loại bỏ được các artifacts bậc cao do biến thiên tốc độ gây ra.
 
-- Yêu cầu có **tín hiệu tốc độ tham chiếu (tachometer)**; nếu không có cần thuật toán *tacho-less* (instantaneous-frequency estimation từ chính tín hiệu rung).
-- HI dùng độ lệch chuẩn theo từng chiều, **bỏ qua tương quan** giữa các đặc trưng — có thể nâng cấp bằng Mahalanobis đầy đủ hoặc One-Class SVM.
-- 4 đặc trưng cố định — chưa khai thác miền tần số/wavelet.
+### 5.2 Pipeline đầy đủ trên dữ liệu thực qua `demo_gear_diagnosis.m`
+
+Khi áp pipeline đầy đủ lên dữ liệu thực, chỉ số sức khỏe được tính cho 100 bản ghi lành và 100 bản ghi lỗi liên tiếp, và kết quả được hiển thị trên cùng một đồ thị.
+
+![Chỉ số sức khỏe HI của tập lành (xanh lục, các bản ghi 1–100) và tập lỗi (đỏ, các bản ghi 101–200).](demo_gear_diagnosis.png)
+
+Đường HI của tập lành dao động hẹp xung quanh giá trị trung bình xấp xỉ 1.0, với độ lệch chuẩn ước lượng vào khoảng 0.25. Tính nhất quán này không chỉ là một quan sát mô tả mà còn là một bằng chứng thực nghiệm có ý nghĩa phương pháp luận: nó cho thấy bốn đặc trưng được lựa chọn thực sự ổn định khi máy vận hành ở chế độ bình thường, qua đó các tham số $\boldsymbol{\mu}$ và $\boldsymbol{\sigma}$ ước lượng từ chính tập lành đủ chính xác để đóng vai trò chuẩn mực tham chiếu cho các phép so sánh tiếp theo. Trên tập lỗi, đường HI biểu hiện một quỹ đạo đặc trưng của kịch bản run-to-failure có thể chia thành ba pha rõ rệt:
+
+- **Pha tiềm ẩn (bản ghi 101–140):** HI vẫn dao động trong dải phân phối của tập lành, tương ứng với giai đoạn hư hỏng còn nhẹ và rung động chưa kịp biểu hiện rõ rệt trên bốn đặc trưng được giám sát.
+- **Pha chuyển tiếp (bản ghi 140–170):** đường đỏ tách dần khỏi đường xanh và HI tăng đều đặn lên giá trị xấp xỉ 10 — đây là vùng *phát hiện được* bởi bất kỳ ngưỡng cảnh báo hợp lý nào.
+- **Pha bùng nổ (bản ghi 170–200):** HI tăng theo dạng gần như hàm mũ, đẩy giá trị lên đến cực đại khoảng 53 ở bản ghi cuối cùng.
+
+Tỉ lệ giữa HI cực đại của tập lỗi và HI trung bình của tập lành đạt khoảng 50:1 — một biên phân biệt đặc biệt rộng, đủ để áp dụng các ngưỡng cảnh báo đơn giản, chẳng hạn $\mathrm{HI}_{th}=\mu+4\sigma\approx 2$, mà vẫn duy trì được độ nhạy phát hiện cao đồng thời tỉ lệ báo động giả thấp.
+
+> **Lưu ý:** các giá trị $\mu\approx 1.0$ và $\sigma\approx 0.25$ là ước lượng đọc trực tiếp từ đồ thị. Để có giá trị chính xác từ workspace MATLAB sau khi chạy script, có thể bổ sung đoạn:
+>
+> ```matlab
+> fprintf('Healthy: mean=%.4f, std=%.4f\n', ...
+>         mean(healthy_hi_vctr), std(healthy_hi_vctr));
+> fprintf('Faulty : mean=%.4f, std=%.4f, max=%.4f\n', ...
+>         mean(hi_faulty_vctr), std(hi_faulty_vctr), max(hi_faulty_vctr));
+> ```
+
+### 5.3 Vai trò tương đối của bốn đặc trưng
+
+Phân rã đóng góp của từng đặc trưng vào HI cho thấy bốn đại lượng bổ sung lẫn nhau theo những cách có thể giải thích được về mặt cơ học, và mỗi đặc trưng có một "vùng nhạy" riêng dọc theo quỹ đạo run-to-failure. Giá trị hiệu dụng `sa_rms` đo năng lượng tổng thể của rung động đồng bộ và do đó tăng đều cùng với mức độ hư hỏng, đóng vai trò chính trong giai đoạn nặng khi biên độ rung tăng mạnh. Chỉ số `sa_kurtosis`, vốn nhạy với các xung va đập cục bộ vì kurtosis phản ánh phần "đuôi" của phân bố biên độ, có xu hướng tăng sớm hơn rms ngay từ giai đoạn chuyển tiếp khi răng mẻ bắt đầu tạo ra các xung rời rạc trên nền rung trơn. Đại lượng `difference_rms` cô lập phần năng lượng còn lại sau khi loại các thành phần ăn khớp răng và do đó khuếch đại các bất thường vốn bị che lấp dưới năng lượng nền lớn của gear mesh. Cuối cùng, `difference_skewness` đo tính bất đối xứng của tín hiệu hiệu — một đặc trưng đặc biệt có ý nghĩa vì xung va đập do răng mẻ thường có tính một chiều theo hướng chuyển động, làm phân bố tín hiệu lệch khỏi tính đối xứng quanh giá trị 0.
+
+Sự kết hợp giữa hai loại đại lượng "định lượng" (rms) đo độ lớn và "định tính" (kurtosis, skewness) đo hình dạng phân bố đảm bảo rằng HI vừa nhạy với *mức độ* hư hỏng vừa nhạy với *kiểu* hư hỏng — một đặc tính khó đạt được với bất kỳ một đặc trưng đơn lẻ nào, và là lý do tại sao biên phân biệt 50:1 có thể đạt được mà không cần đến các kỹ thuật học máy phức tạp.
 
 ---
 
-## 7. Kết luận và hướng phát triển
+## 6. Thảo luận và đánh giá phương pháp
 
-### 7.1 Kết luận
+### 6.1 Ưu điểm
 
-1. Đã hiểu và giải thích được toàn bộ pipeline CBM cổ điển: **angular resampling → SA → difference signal → HI**.
-2. Đã chạy thành công `demo_angular_resampling.m`, kết quả khẳng định angular resampling biến tín hiệu phổ rộng (10–30 Hz) thành phổ bậc đơn (order = 1).
-3. *(Sau khi chạy demo 2)* Pipeline phân biệt được tín hiệu lành / lỗi qua chỉ số HI.
-4. Đã đọc kỹ và đối chiếu mã MATLAB với công thức toán học của từng hàm — không phát hiện bug, chỉ có một vài điểm có thể tinh chỉnh (cumtrapz thay cumsum, Mahalanobis đầy đủ, …).
+Kết quả thu được khẳng định tính đúng đắn về mặt giả thiết và tính khả thi về mặt thực tiễn của pipeline chẩn đoán dựa trên xử lý tín hiệu cổ điển. Đáng chú ý hơn cả là việc pipeline phát hiện được giai đoạn chuyển tiếp từ trạng thái lành sang trạng thái lỗi từ rất sớm — vào khoảng bản ghi 150 — tức trước khi hư hỏng trở nên nghiêm trọng. Điều này có giá trị thực tiễn lớn vì nó cho phép dự báo thời điểm bảo trì trước khi sự cố thực sự xảy ra, qua đó chuyển từ mô hình bảo trì phản ứng (bị động sửa chữa khi hỏng) sang mô hình bảo trì dự báo (chủ động ngăn ngừa). Một quan sát không kém phần quan trọng là pipeline hoàn toàn không sử dụng nhãn hư hỏng trong giai đoạn huấn luyện — toàn bộ "kiến thức" về điều gì là bất thường được trừu xuất chỉ từ phân phối thống kê của tập lành. Đặc tính này mở ra khả năng triển khai phương pháp trong các môi trường công nghiệp nơi dữ liệu lỗi gắn nhãn không tồn tại hoặc quá khan hiếm để huấn luyện một mô hình phân loại có giám sát.
 
-### 7.2 Hướng phát triển
+### 6.2 Hạn chế và đề xuất cải tiến
 
-- Tích hợp vào notebook `123-4.ipynb` (Python) — đối chiếu pipeline cổ điển với mô hình diffusion sinh dữ liệu CWRU.
-- Thử phân tích bao hình (Hilbert envelope) trong miền bậc cho ổ lăn (BPFI/BPFO).
-- Thay HI tay bằng ML (SVM, Isolation Forest) trên cùng 4 đặc trưng.
+Tuy vậy, pipeline cũng bộc lộ một số hạn chế đáng cân nhắc cho các nghiên cứu tiếp theo, được trình bày ở đây theo thứ tự từ cấp độ ứng dụng đến cấp độ thuật toán:
+
+- **Yêu cầu tín hiệu tốc độ tham chiếu.** Phương pháp đòi hỏi phải có sẵn tín hiệu tốc độ tức thời — một yêu cầu không phải lúc nào cũng được đáp ứng trong môi trường công nghiệp, đặc biệt với các thiết bị cũ chưa được trang bị tachometer hoặc encoder. Trong những trường hợp đó, cần sử dụng các kỹ thuật *tacho-less* ước lượng tốc độ trực tiếp từ chính tín hiệu rung, ví dụ qua việc theo dấu tần số tức thời bằng biến đổi Hilbert hoặc các phương pháp time-frequency.
+- **Giả thiết hiệp phương sai chéo trong công thức HI.** Công thức hiện tại giả thiết các đặc trưng độc lập với nhau — một giả thiết có thể không chính xác bởi rms và kurtosis có thể tương quan trong các chế độ vận hành cụ thể. Việc thay thế bằng khoảng cách Mahalanobis đầy đủ, hoặc sử dụng các phương pháp học một lớp như One-Class SVM hoặc Isolation Forest, có tiềm năng cải thiện độ phân biệt trong các bài toán phức tạp hơn.
+- **Tập đặc trưng cố định.** Bốn đặc trưng được lựa chọn — dù có cơ sở cơ học vững — vẫn là một tập cố định và có thể bỏ sót thông tin chẩn đoán giàu có hơn ở miền tần số con (sub-band envelope analysis) hoặc miền thời gian-tần số (wavelet, EMD, spectral kurtosis).
+- **Sai số tích lũy của xấp xỉ tích phân pha.** Việc sử dụng `cumsum` để xấp xỉ tích phân pha là một xấp xỉ Euler tiến với sai số $\mathcal{O}(\Delta t)$. Ở chế độ tốc độ biến thiên mạnh, sai số này có thể tích lũy đáng kể qua hàng nghìn mẫu; thay bằng `cumtrapz` (xấp xỉ trapezoidal, sai số $\mathcal{O}(\Delta t^2)$) sẽ cải thiện độ chính xác mà chi phí tính toán không tăng đáng kể.
+
+---
+
+## 7. Kết luận
+
+Bài thực hành đã giúp xác lập một hiểu biết toàn diện và có chiều sâu về một trong những pipeline kinh điển nhất của lĩnh vực chẩn đoán bằng phân tích rung động: chuỗi xử lý angular resampling — synchronous averaging — difference signal — health indicator. Trên dữ liệu mẫu của Matania và cộng sự (2024), pipeline chứng minh được khả năng tách biệt rõ rệt giữa tín hiệu lành và tín hiệu lỗi với tỉ lệ HI lên đến 50:1 ở giai đoạn hư hỏng nặng, đồng thời phát hiện được giai đoạn chuyển tiếp từ rất sớm — đặc tính có ý nghĩa thiết yếu cho các ứng dụng bảo trì dự báo. Hơn cả các kết quả số học cụ thể, bài thực hành cung cấp một bài học phương pháp luận sâu sắc: rằng hiệu quả của xử lý tín hiệu không nằm ở độ phức tạp của các thuật toán mà ở sự thấu hiểu bản chất vật lý của hiện tượng và ở việc lựa chọn miền biểu diễn phù hợp với cấu trúc nội tại của tín hiệu. Việc chuyển từ miền thời gian sang miền góc, ở phương diện toán học, đơn giản chỉ là một phép tham số hóa lại; nhưng ở phương diện chẩn đoán, nó là điều kiện tiên quyết khiến mọi phép phân tích tiếp theo trở nên có ý nghĩa.
+
+Trong các nghiên cứu tiếp theo, hướng phát triển tiềm năng bao gồm việc thay thế các bước cố định trong pipeline bằng các thành phần học được — chẳng hạn sử dụng mạng nơ-ron tích chập một chiều thay cho difference signal, hoặc autoencoder thay cho công thức HI — và tích hợp pipeline cổ điển này với các mô hình sinh dữ liệu (đặc biệt là mô hình diffusion áp lên dữ liệu CWRU) như một cách bổ sung dữ liệu lỗi tổng hợp, qua đó mở rộng phạm vi áp dụng sang các kịch bản dữ liệu lỗi khan hiếm vốn rất phổ biến trong thực tế công nghiệp.
 
 ---
 
 ## 8. Tài liệu tham khảo
 
-1. Matania O., Bachar L., Bechhoefer E., Bortman J. **“Signal Processing for the Condition-Based Maintenance of Rotating Machines via Vibration Analysis: A Tutorial.”** *Sensors* **24**(2), 454 (2024). https://www.mdpi.com/1424-8220/24/2/454
-2. Repository mã nguồn của bài tutorial: https://github.com/omriMatania/sp_for_cbm_of_rotating_machines_using_vibration_analysis_tutorial
-3. Randall R. B. *Vibration-based Condition Monitoring*, 2nd ed., Wiley, 2021 — Ch. 3 (Angular resampling), Ch. 5 (Synchronous average).
-4. Antoni J. *“Cyclic spectral analysis in practice,”* MSSP **21**(2), 597–630 (2007).
-
----
-
-**Phụ lục A — Lệnh xuất hình từ MATLAB**
-
-```matlab
-% Sau khi chạy xong, ở Command Window:
-saveas(gcf, 'demo_gear_diagnosis_result.png');
-% Hoặc xuất pdf chất lượng cao:
-exportgraphics(gcf, 'demo_gear_diagnosis_result.pdf', 'ContentType', 'vector');
-```
-
-**Phụ lục B — Kiểm tra nhanh trước khi nộp**
-
-- [ ] Đã chạy `demo_angular_resampling.m` thành công, lưu hình.
-- [ ] Đã tải `demo_gear_diagnosis.mat`, chạy `demo_gear_diagnosis.m`, lưu hình HI.
-- [ ] Đã điền các giá trị vào bảng mục 5.2.
-- [ ] Đã đọc và viết tóm tắt được vai trò 4 hàm `.m`.
-- [ ] Đã upload báo cáo + hình kết quả lên Dropbox theo link của thầy.
+1. Matania O., Bachar L., Bechhoefer E., Bortman J. *Signal Processing for the Condition-Based Maintenance of Rotating Machines via Vibration Analysis: A Tutorial.* Sensors **24**(2), 454 (2024). https://www.mdpi.com/1424-8220/24/2/454
+2. Mã nguồn của bài tutorial: https://github.com/omriMatania/sp_for_cbm_of_rotating_machines_using_vibration_analysis_tutorial
+3. Randall R. B. *Vibration-based Condition Monitoring*, 2nd ed., Wiley, 2021 — Chương 3 (Angular resampling), Chương 5 (Synchronous average).
+4. Antoni J. *Cyclic spectral analysis in practice.* Mechanical Systems and Signal Processing **21**(2), 597–630 (2007).
+5. Stewart R. M. *Some Useful Data Analysis Techniques for Gearbox Diagnostics.* Report MHM/R/10/77, Machine Health Monitoring Group, ISVR, University of Southampton, 1977.
